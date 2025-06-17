@@ -5,35 +5,35 @@ import json
 import streamlit as st
 from fpdf import FPDF
 from docx import Document
-from dotenv import load_dotenv
 from atlassian import Confluence
 import google.generativeai as genai
 from bs4 import BeautifulSoup
 
-# Load environment variables
-load_dotenv()
-
+# Initialize Confluence connection
 @st.cache_resource
 def init_confluence():
     try:
         return Confluence(
-            url=os.getenv('CONFLUENCE_BASE_URL'),
-            username=os.getenv('CONFLUENCE_USER_EMAIL'),
-            password=os.getenv('CONFLUENCE_API_KEY'),
+            url=st.secrets["CONFLUENCE_BASE_URL"],
+            username=st.secrets["CONFLUENCE_USER_EMAIL"],
+            password=st.secrets["CONFLUENCE_API_KEY"],
             timeout=10
         )
     except Exception as e:
         st.error(f"Confluence initialization failed: {str(e)}")
         return None
 
+# Initialize Gemini AI
 def init_ai():
-    genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+    genai.configure(api_key=st.secrets["GENAI_API_KEY"])
     return genai.GenerativeModel("models/gemini-1.5-flash-8b-latest")
 
+# Clean HTML to plain text
 def clean_html(html_content):
     soup = BeautifulSoup(html_content, "html.parser")
     return soup.get_text(separator="\n")
 
+# Export formats
 def create_pdf(text):
     pdf = FPDF()
     pdf.add_page()
@@ -70,6 +70,7 @@ def create_txt(text):
     return io.BytesIO(text.encode())
 
 # UI Starts
+st.set_page_config(page_title="Confluence AI Search", page_icon="🔗")
 st.title("🔗 Confluence AI Powered Search")
 
 confluence = init_confluence()
@@ -113,6 +114,7 @@ if confluence:
 else:
     st.error("❌ Connection to Confluence failed.")
 
+# AI Query
 if confluence and selected_pages:
     st.subheader("🤖 Generate AI Response")
     query = st.text_input("Enter your question:")
@@ -133,6 +135,7 @@ if confluence and selected_pages:
         else:
             st.error("Please enter a query.")
 
+# Response + Export
 if "ai_response" in st.session_state:
     st.markdown("### 💬 AI Response")
     st.markdown(st.session_state.ai_response)
