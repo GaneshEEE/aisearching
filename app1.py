@@ -14,9 +14,9 @@ from bs4 import BeautifulSoup
 def init_confluence():
     try:
         return Confluence(
-            url=st.secrets["CONFLUENCE_BASE_URL"],
-            username=st.secrets["CONFLUENCE_USER_EMAIL"],
-            password=st.secrets["CONFLUENCE_API_KEY"],
+            url=os.environ["CONFLUENCE_BASE_URL"],
+            username=os.environ["CONFLUENCE_USER_EMAIL"],
+            password=os.environ["CONFLUENCE_API_KEY"],
             timeout=10
         )
     except Exception as e:
@@ -25,7 +25,7 @@ def init_confluence():
 
 # Initialize Gemini AI
 def init_ai():
-    genai.configure(api_key=st.secrets["GENAI_API_KEY"])
+    genai.configure(api_key=os.environ["GENAI_API_KEY"])
     return genai.GenerativeModel("models/gemini-1.5-flash-8b-latest")
 
 # Clean HTML to plain text
