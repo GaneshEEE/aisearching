@@ -72,7 +72,9 @@ def create_txt(text):
 # UI Starts
 st.set_page_config(page_title="Confluence AI Search", page_icon="🔗")
 st.title("🔗 Confluence AI Powered Search")
-
+query_params = st.experimental_get_query_params()
+auto_space = query_params.get("space", [None])[0]
+auto_page = query_params.get("page", [None])[0]
 confluence = init_confluence()
 ai_model = init_ai()
 
@@ -82,7 +84,12 @@ full_context = ""
 if confluence:
     st.success("✅ Connected to Confluence!")
 
-    space_key = st.text_input("Enter your space key:")
+    if auto_space:
+        space_key = auto_space
+        st.success(f"📦 Auto-detected space from URL: {space_key}")
+    else:
+        space_key = st.text_input("Enter your space key:")
+
 
     if space_key:
         try:
