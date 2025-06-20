@@ -97,7 +97,11 @@ if confluence:
             all_titles = [p["title"] for p in pages]
 
             select_all = st.checkbox("Select All Pages")
-            selected_titles = st.multiselect("Select Page(s):", all_titles, default=all_titles if select_all else [])
+            if auto_page and auto_page in all_titles:
+                selected_titles = [auto_page]
+                st.success(f"📄 Auto-detected page from URL: {auto_page}")
+            else:
+                selected_titles = st.multiselect("Select Page(s):", all_titles, default=all_titles if select_all else [])
             show_content = st.checkbox("Show Page Content")
 
             selected_pages = [p for p in pages if p["title"] in selected_titles]
