@@ -72,7 +72,7 @@ def create_txt(text):
 # UI Starts
 st.set_page_config(page_title="Confluence AI Search", page_icon="🔗")
 st.title("🔗 Confluence AI Powered Search")
-query_params = st.query_params()
+query_params = st.experimental_get_query_params()
 auto_space = query_params.get("space", [None])[0]
 auto_page = query_params.get("page", [None])[0]
 confluence = init_confluence()
