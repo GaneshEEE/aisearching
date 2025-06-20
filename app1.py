@@ -74,7 +74,8 @@ st.set_page_config(page_title="Confluence AI Search", page_icon="🔗")
 st.title("🔗 Confluence AI Powered Search")
 query_params = st.query_params
 st.write("FULL query params:", query_params)
-auto_space = query_params.get("space", [None])[0]
+auto_space_raw = query_params.get("space")
+auto_space = auto_space_raw[0] if isinstance(auto_space_raw, list) else auto_space_raw
 auto_page = query_params.get("page", [None])[0]
 confluence = init_confluence()
 ai_model = init_ai()
