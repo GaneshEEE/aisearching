@@ -121,7 +121,9 @@ if confluence:
             else:
                 st.warning("Please select at least one page.")
         except Exception as e:
-            st.error(f"Error fetching pages: {str(e)}")
+            st.error(f"❌ Error fetching pages: {str(e)}")
+            st.exception(e)  # shows full traceback in Streamlit
+
 else:
     st.error("❌ Connection to Confluence failed.")
 
