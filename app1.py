@@ -38,7 +38,9 @@ def remove_emojis(text):
         u"\U0001F680-\U0001F6FF"
         u"\U0001F1E0-\U0001F1FF"
         "]+", flags=re.UNICODE)
-    return emoji_pattern.sub(r'', text)
+    no_emoji = emoji_pattern.sub(r'', text)
+    return no_emoji.encode('latin-1', 'ignore').decode('latin-1')
+
 
 def clean_html(html_content):
     soup = BeautifulSoup(html_content, "html.parser")
