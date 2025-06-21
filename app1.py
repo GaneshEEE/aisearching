@@ -180,30 +180,37 @@ if "ai_response" in st.session_state:
         )
 
     st.markdown("---")
-    st.subheader("📝 Save to Confluence Page")
+st.subheader("📝 Save to Confluence Page")
 
+# Use auto_page as default if available
+if auto_page:
+    target_page_title = auto_page
+    st.success(f"📄 Auto-selected page to update: {target_page_title}")
+else:
     target_page_title = st.text_input("Enter the Confluence page title to save this to:")
-    if st.button("✏️ Save AI Response to Confluence"):
-        if target_page_title:
-            try:
-                matching_pages = [p for p in selected_pages if p["title"] == target_page_title]
-                if not matching_pages:
-                    st.error("Page not found in selected pages.")
-                else:
-                    page_id = matching_pages[0]["id"]
-                    existing_page = confluence.get_page_by_id(page_id, expand="body.storage")
-                    existing_content = existing_page["body"]["storage"]["value"]
 
-                    updated_body = f"{existing_content}<hr/><h3>AI Response</h3><p>{st.session_state.ai_response.replace('\n', '<br>')}</p>"
+if st.button("✏️ Save AI Response to Confluence"):
+    if target_page_title:
+        try:
+            matching_pages = [p for p in selected_pages if p["title"] == target_page_title]
+            if not matching_pages:
+                st.error("Page not found in selected pages.")
+            else:
+                page_id = matching_pages[0]["id"]
+                existing_page = confluence.get_page_by_id(page_id, expand="body.storage")
+                existing_content = existing_page["body"]["storage"]["value"]
 
-                    confluence.update_page(
-                        page_id=page_id,
-                        title=target_page_title,
-                        body=updated_body,
-                        representation="storage"
-                    )
-                    st.success("✅ AI response saved to Confluence page.")
-            except Exception as e:
-                st.error(f"❌ Failed to update page: {str(e)}")
-        else:
-            st.warning("Please enter a page title.")
+                updated_body = f"{existing_content}<hr/><h3>AI Response</h3><p>{st.session_state.ai_response.replace('\n', '<br>')}</p>"
+
+                confluence.update_page(
+                    page_id=page_id,
+                    title=target_page_title,
+                    body=updated_body,
+                    representation="storage"
+                )
+                st.success("✅ AI response saved to Confluence page.")
+        except Exception as e:
+            st.error(f"❌ Failed to update page: {str(e)}")
+    else:
+        st.warning("Please enter a page title.")
+
