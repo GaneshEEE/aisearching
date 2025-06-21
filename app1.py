@@ -76,7 +76,8 @@ query_params = st.query_params
 st.write("FULL query params:", query_params)
 auto_space_raw = query_params.get("space")
 auto_space = auto_space_raw[0] if isinstance(auto_space_raw, list) else auto_space_raw
-auto_page = query_params.get("page", [None])[0]
+raw_page = query_params.get("page")
+auto_page = raw_page[0] if isinstance(raw_page, list) else raw_page
 confluence = init_confluence()
 ai_model = init_ai()
 
