@@ -423,9 +423,57 @@ def feature_2():
                             st.markdown(f"#### 📄 {video_name}")
                             st.markdown(content["quotes"])
                             st.markdown(content["summary"])
-                            summaries.append((f"{title}_{video_name}", content["summary"], content["quotes"]))
+                            summaries.append((f"{title}_{video_name}", content["summary"], content["quotes"], content["transcript"]))
 
-                    if summaries:
+                            # Q&A Section
+                            q_key = f"{session_key}_question"
+                            q_submit_key = f"{session_key}_ask_clicked"
+                            q_response_key = f"{session_key}_response"
+                            q_response_cache_key = f"{session_key}_last_question"
+
+                            st.text_input(f"💬 Ask a question about `{video_name}`:", key=q_key)
+                            if st.button("🧠 Ask", key=q_submit_key):
+                                question = st.session_state[q_key].strip()
+                                if question:
+                                    if (q_response_cache_key not in st.session_state or
+                                        st.session_state[q_response_cache_key] != question):
+                                        answer = ai_model.generate_content(
+                                            f"Answer this in detail based on the video transcription:\n{content['transcript']}\n\nQuestion: {question}"
+                                        )
+                                        st.session_state[q_response_key] = answer.text
+                                        st.session_state[q_response_cache_key] = question
+
+                            if q_response_key in st.session_state:
+                                st.markdown(f"**Answer:** {st.session_state[q_response_key]}")
+
+                            # Individual File Download
+                            file_base = f"{title}_{video_name}".replace(" ", "_").replace(":", "")
+                            format_choice = st.selectbox(
+                                f"Choose format for {video_name}:", ["PDF", "TXT"], key=f"{session_key}_format"
+                            )
+                            file_name = f"{file_base}.{format_choice.lower()}"
+                            export_content = f"{content['quotes']}\n\n{content['summary']}"
+
+                            if format_choice == "PDF":
+                                pdf = FPDF()
+                                pdf.add_page()
+                                pdf.set_font("Arial", size=12)
+                                for line in remove_emojis(export_content).split("\n"):
+                                    pdf.multi_cell(0, 10, line)
+                                file_data = pdf.output(dest="S").encode("latin-1")
+                                mime = "application/pdf"
+                            else:
+                                file_data = export_content.encode("utf-8")
+                                mime = "text/plain"
+
+                            st.download_button(
+                                label=f"📥 Download {file_name}",
+                                data=BytesIO(file_data),
+                                file_name=file_name,
+                                mime=mime
+                            )
+
+                    if len(summaries) > 1:
                         st.markdown("## 📦 Export All Summaries")
                         all_text = ""
                         for t, s, q in summaries:
