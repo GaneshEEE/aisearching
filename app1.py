@@ -476,8 +476,10 @@ def feature_2():
                     if len(summaries) > 1:
                         st.markdown("## 📦 Export All Summaries")
                         all_text = ""
-                        for t, s, q in summaries:
+                        all_text = ""
+                        for t, s, q, _ in summaries:
                             all_text += f"\n\n---\n\n{t}\n\nQuotes:\n{q}\n\nSummary:\n{s}\n"
+
 
                         file_name = st.text_input("Filename (without extension):", value="All_Summaries")
                         export_format = st.selectbox("Format:", ["PDF", "TXT"])
