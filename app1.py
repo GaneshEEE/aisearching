@@ -447,12 +447,19 @@ def feature_2():
                                     st.markdown(f"**Answer:** {st.session_state[q_response_key]}")
 
 
-                            # Individual File Download
+                            # Individual File Download with custom name input
                             file_base = f"{title}_{video_name}".replace(" ", "_").replace(":", "")
+                            filename_input_key = f"{session_key}_custom_filename"
+                            
+                            custom_filename = st.text_input(
+                                label="📝 Enter filename (without extension):",
+                                value=file_base,
+                                key=filename_input_key
+                            )
                             format_choice = st.selectbox(
                                 f"Choose format for {video_name}:", ["PDF", "TXT"], key=f"{session_key}_format"
                             )
-                            file_name = f"{file_base}.{format_choice.lower()}"
+                            file_name = f"{custom_filename.strip() or file_base}.{format_choice.lower()}"
                             export_content = f"{content['quotes']}\n\n{content['summary']}"
 
                             if format_choice == "PDF":
