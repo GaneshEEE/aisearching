@@ -947,7 +947,7 @@ def feature_4():
                         """, unsafe_allow_html=True)
                         if "impact_text" not in st.session_state:
                             st.session_state.impact_text = safe_generate(
-                                        f"""Write a paragraph summarizing the overall impact of the following code diff.
+                                        f"""Write 2 paragraphs summarizing the overall impact of the following code diff.
                             
                                         Cover only:
                                         - What was changed
@@ -961,7 +961,7 @@ def feature_4():
                                             )
                         if "rec_text" not in st.session_state:
                                 st.session_state.rec_text = safe_generate(
-                                        f"""As a senior engineer, write a short paragraph suggesting improvements for the following code diff.
+                                        f"""As a senior engineer, write 2 paragraphs suggesting improvements for the following code diff.
 
                                         Focus on:
                                         - Code quality
