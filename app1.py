@@ -478,7 +478,8 @@ def feature_2():
                                 label=f"📥 Download {file_name}",
                                 data=BytesIO(file_data),
                                 file_name=file_name,
-                                mime=mime
+                                mime=mime,
+                                key=f"{session_key}_download_button"
                             )
 
                     if len(summaries) > 1:
