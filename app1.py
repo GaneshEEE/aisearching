@@ -15,14 +15,13 @@ from bs4 import BeautifulSoup
 from io import BytesIO
 import difflib
 import warnings
+import requests
 
 # Optional imports for video summarizer
 try:
     import ffmpeg
-    from faster_whisper import WhisperModel
 except ImportError:
     ffmpeg = None
-    WhisperModel = None
 
 warnings.filterwarnings("ignore")
 
@@ -45,9 +44,48 @@ def remove_emojis(text):
 def extract_audio_ffmpeg(video_path, audio_path):
     try:
         ffmpeg.input(video_path).output(audio_path, acodec='mp3', vn=None).run(overwrite_output=True)
-    except Exception as e:
-        raise RuntimeError(f"FFmpeg error: {str(e)}")
+    except ffmpeg.Error as e:
+        raise RuntimeError(f"FFmpeg error: {e.stderr.decode()}")
 
+
+def transcribe_with_assemblyai(audio_path):
+    api_key = os.getenv("ASSEMBLYAI_API_KEY")
+    headers = {"authorization": api_key, "content-type": "application/json"}
+
+    # Upload
+    with open(audio_path, 'rb') as f:
+        upload_response = requests.post(
+            "https://api.assemblyai.com/v2/upload",
+            headers={"authorization": api_key},
+            files={"file": f}
+        )
+    if upload_response.status_code != 200:
+        raise RuntimeError("Upload failed: " + upload_response.text)
+    audio_url = upload_response.json()["upload_url"]
+
+    # Transcribe
+    transcript_response = requests.post(
+        "https://api.assemblyai.com/v2/transcript",
+        json={"audio_url": audio_url},
+        headers=headers
+    )
+    if transcript_response.status_code != 200:
+        raise RuntimeError("Transcription request failed: " + transcript_response.text)
+
+    transcript_id = transcript_response.json()["id"]
+
+    # Polling
+    while True:
+        polling_response = requests.get(
+            f"https://api.assemblyai.com/v2/transcript/{transcript_id}",
+            headers=headers
+        )
+        status = polling_response.json()["status"]
+        if status == "completed":
+            return polling_response.json()["text"]
+        elif status == "error":
+            raise RuntimeError("Transcription failed: " + polling_response.json()["error"])
+        time.sleep(2)
 
 
 def clean_html(html_content):
@@ -271,13 +309,6 @@ def feature_1():
 def feature_2():
     st.title("📄 Confluence Video Summarizer")
     
-    # Get query parameters for auto-selection
-    query_params = st.query_params
-    auto_space_raw = query_params.get("space")
-    auto_space = auto_space_raw[0] if isinstance(auto_space_raw, list) else auto_space_raw
-    raw_page = query_params.get("page")
-    auto_page = raw_page[0] if isinstance(raw_page, list) else raw_page
-    
     @st.cache_resource
     def init_confluence():
         try:
@@ -290,38 +321,23 @@ def feature_2():
         except Exception as e:
             st.error(f"Confluence init failed: {e}")
             return None
+
     genai.configure(api_key=os.getenv("GENAI_API_KEY"))
     ai_model = genai.GenerativeModel("models/gemini-1.5-flash-8b-latest")
     confluence = init_confluence()
+
+    if ffmpeg is None:
+        st.error("Video summarizer dependency `ffmpeg` is not installed. Please run `pip install ffmpeg-python`.")
+        return
+
     if confluence:
         st.success("✅ Connected to Confluence!")
-        
-        # Auto-select space if available from query params
-        if auto_space:
-            space_key = auto_space
-            st.success(f"📦 Auto-detected space from URL: {space_key}")
-        else:
-            spaces = confluence.get_all_spaces(start=0, limit=100)["results"]
-            space_options = {f"{s['name']} ({s['key']})": s['key'] for s in spaces}
-            space_names = list(space_options.keys())
 
-            selected_space_label = st.selectbox(
-                label="Select a space key:",
-                options=space_names,
-                index=None,
-                placeholder="Choose a space"
-            )
-
-            if selected_space_label is None:
-                st.info("Please select a space to continue.")
-                return
-
-            space_key = space_options[selected_space_label]
-            
+        space_key = st.text_input("Enter your Confluence Space Key:")
         if space_key:
             try:
                 pages = confluence.get_all_pages_from_space(space=space_key, start=0, limit=100)
-                page_titles = [page["title"] for page in pages]
+                page_titles = [p["title"] for p in pages]
                 selected_pages = st.multiselect("Select Pages to Process:", page_titles)
                 if selected_pages:
                     summaries = []
@@ -349,18 +365,10 @@ def feature_2():
                                         with open(local_path, "wb") as f:
                                             f.write(video_data)
 
-                                        # Extract audio with ffmpeg
                                         extract_audio_ffmpeg(local_path, "temp_audio.mp3")
+                                        transcript = transcribe_with_assemblyai("temp_audio.mp3")
 
-                                        # Transcribe with Whisper
-                                        model = WhisperModel("tiny", device="cpu", compute_type="int8")
-                                        segments, _ = model.transcribe("temp_audio.mp3")
-                                        transcript = "\n".join(
-                                            f"[{int(s.start // 60)}:{int(s.start % 60):02}] {s.text}" for s in segments
-                                        )
-
-                                        # Generate quotes and summary
-                                        ai_model = genai.GenerativeModel("models/gemini-1.5-flash-8b-latest")
+                                        # Generate summary
                                         quote_prompt = f"Set a title \"Quotes:\" in bold. Extract powerful or interesting quotes:\n{transcript}"
                                         quotes = ai_model.generate_content(quote_prompt).text
                                         summary_prompt = (
@@ -369,7 +377,6 @@ def feature_2():
                                         )
                                         summary = ai_model.generate_content(summary_prompt).text
 
-                                        # Cache result
                                         st.session_state[session_key] = {
                                             "transcript": transcript,
                                             "summary": summary,
