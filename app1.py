@@ -1184,7 +1184,7 @@ def feature_5():
                     st.markdown("### 📘 Confluence Test Strategy Generator")
                     if not st.session_state.strategy_text:
                         with st.spinner("🧪 Generating test strategy..."):
-                            prompt_strategy = f"""The following is a code snippet:\n\n{code_content}\n\nBased on this, please generate appropriate test strategies and detailed test cases. Mention types of testing (unit, integration, regression), areas that require special attention, and possible edge cases."""
+                            prompt_strategy = f"""The following is a code snippet:\n\n{code_content}\n\nBased on this, please generate appropriate test strategies and test cases. Mention types of testing (unit, integration, regression), areas that require special attention, and possible edge cases."""
                             response_strategy = ai_model.generate_content(prompt_strategy)
                             st.session_state.strategy_text = response_strategy.text.strip()
                     st.subheader("📋 Suggested Test Strategies and Test Cases")
@@ -1192,7 +1192,7 @@ def feature_5():
                     st.markdown("### 🌐 Cross-Platform Testing Intelligence")
                     if not st.session_state.cross_text:
                         with st.spinner("🧠 Analyzing for cross-platform compatibility..."):
-                            prompt_cross_platform = f"""You are a cross-platform UI testing expert. Analyze the following frontend code and generate detailed test strategies. Code:\n{code_content}\n\nInclude: - Desktop, Mobile Web, Tablet test cases - UI/viewport issues - Framework/tool suggestions"""
+                            prompt_cross_platform = f"""You are a cross-platform UI testing expert. Analyze the following frontend code and generate test strategies. Code:\n{code_content}\n\nInclude: - Desktop, Mobile Web, Tablet test cases - UI/viewport issues in one paragraph - Framework/tool suggestions in one paragraph"""
                             response_cross_platform = ai_model.generate_content(prompt_cross_platform)
                             st.session_state.cross_text = response_cross_platform.text.strip()
                     st.subheader("📋 Suggested Strategy and Test Cases")
