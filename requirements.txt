@@ -6,6 +6,6 @@ google-generativeai
 python-dotenv
 atlassian-python-api
 faster-whisper
-ffmpeg-python
+ffmpeg
 regex
 requests
