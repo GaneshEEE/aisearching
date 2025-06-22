@@ -338,7 +338,13 @@ def feature_1():
 # ------------- Feature 2: Video Summarizer -------------
 def feature_2():
     st.title("📄 Confluence Video Summarizer")
-    
+    # Get query parameters for auto-selection
+    query_params = st.query_params
+    auto_space_raw = query_params.get("space")
+    auto_space = auto_space_raw[0] if isinstance(auto_space_raw, list) else auto_space_raw
+    raw_page = query_params.get("page")
+    auto_page = raw_page[0] if isinstance(raw_page, list) else raw_page
+
     @st.cache_resource
     def init_confluence():
         try:
@@ -363,7 +369,12 @@ def feature_2():
     if confluence:
         st.success("✅ Connected to Confluence!")
 
-        space_key = st.text_input("Enter your Confluence Space Key:")
+        if auto_space:
+            space_key = auto_space
+            st.success(f"📦 Auto-detected space from URL: {space_key}")
+        else:
+            space_key = st.text_input("Enter your Confluence Space Key:")
+            
         if space_key:
             try:
                 pages = confluence.get_all_pages_from_space(space=space_key, start=0, limit=100)
@@ -512,6 +523,50 @@ def feature_2():
                             file_name=f"{file_name.strip() or 'All_Summaries'}.{ext}",
                             mime=mime
                         )
+                        # Save to Confluence functionality
+                    if summaries:
+                        st.markdown("---")
+                        st.subheader("📝 Save to Confluence Page")
+                        
+                        # Use auto_page as default if available
+                        if auto_page:
+                            target_page_title = auto_page
+                            st.success(f"📄 Auto-selected page to update: {target_page_title}")
+                        else:
+                            target_page_title = st.text_input("Enter the Confluence page title to save summaries to:")
+                        
+                        if st.button("✏️ Save Video Summaries to Confluence"):
+                            if target_page_title:
+                                try:
+                                    matching_pages = [p for p in pages if p["title"] == target_page_title]
+                                    if not matching_pages:
+                                        st.error("Page not found in selected pages.")
+                                    else:
+                                        page_id = matching_pages[0]["id"]
+                                        existing_page = confluence.get_page_by_id(page_id, expand="body.storage")
+                                        existing_content = existing_page["body"]["storage"]["value"]
+                                        
+                                        # Create summary content
+                                        summary_content = "<hr/><h3>Video Summaries</h3>"
+                                        for summary_title, summary, quotes in summaries:
+                                            summary_content += f"<h4>{summary_title}</h4>"
+                                            summary_content += f"<h5>Quotes:</h5><p>{quotes.replace(chr(10), '<br>')}</p>"
+                                            summary_content += f"<h5>Summary:</h5><p>{summary.replace(chr(10), '<br>')}</p>"
+                                            summary_content += "<hr/>"
+                                        
+                                        updated_body = existing_content + summary_content
+                                        
+                                        confluence.update_page(
+                                            page_id=page_id,
+                                            title=target_page_title,
+                                            body=updated_body,
+                                            representation="storage"
+                                        )
+                                        st.success("✅ Video summaries saved to Confluence page.")
+                                except Exception as e:
+                                    st.error(f"❌ Failed to update page: {str(e)}")
+                            else:
+                                st.warning("Please enter a page title.")
             except Exception as e:
                 st.error(f"Error loading pages: {e}")
     else:
