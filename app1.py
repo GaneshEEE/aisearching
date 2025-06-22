@@ -425,26 +425,28 @@ def feature_2():
                             st.markdown(content["summary"])
                             summaries.append((f"{title}_{video_name}", content["summary"], content["quotes"], content["transcript"]))
 
-                            # Q&A Section
+                            # Q&A Section with form to prevent full rerun
                             q_key = f"{session_key}_question"
-                            q_submit_key = f"{session_key}_ask_clicked"
                             q_response_key = f"{session_key}_response"
                             q_response_cache_key = f"{session_key}_last_question"
-
-                            st.text_input(f"💬 Ask a question about `{video_name}`:", key=q_key)
-                            if st.button("🧠 Ask", key=q_submit_key):
-                                question = st.session_state[q_key].strip()
-                                if question:
+                            
+                            with st.form(key=f"{session_key}_qa_form"):
+                                question = st.text_input(f"💬 Ask a question about `{video_name}`:", key=q_key)
+                                submit = st.form_submit_button("🧠 Ask")
+                            
+                                if submit and question:
                                     if (q_response_cache_key not in st.session_state or
                                         st.session_state[q_response_cache_key] != question):
-                                        answer = ai_model.generate_content(
+                                        response = ai_model.generate_content(
                                             f"Answer this in detail based on the video transcription:\n{content['transcript']}\n\nQuestion: {question}"
                                         )
-                                        st.session_state[q_response_key] = answer.text
+                                        st.session_state[q_response_key] = response.text
                                         st.session_state[q_response_cache_key] = question
-
+                            
+                            # Always display last answer if available
                             if q_response_key in st.session_state:
                                 st.markdown(f"**Answer:** {st.session_state[q_response_key]}")
+
 
                             # Individual File Download
                             file_base = f"{title}_{video_name}".replace(" ", "_").replace(":", "")
