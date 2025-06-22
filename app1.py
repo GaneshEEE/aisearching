@@ -383,69 +383,68 @@ def feature_2():
                             if not video_name.lower().endswith(".mp4"):
                                 continue
                             session_key = f"{page_id}_{video_name}".replace(" ", "_")
-                            if session_key in st.session_state:
-                                st.info(f"🟡 Cached summary found for {video_name}")
-                            else:
-                                with st.spinner("📥 Downloading and processing..."):
-                                    try:
-                                        video_url = attachment["_links"]["download"]
-                                        full_url = f"{os.getenv('CONFLUENCE_BASE_URL').rstrip('/')}{video_url}"
-                                        local_path = f"{title}_{video_name}".replace(" ", "_")
-                                        video_data = confluence._session.get(full_url).content
-                                        with open(local_path, "wb") as f:
-                                            f.write(video_data)
-
-                                        extract_audio_ffmpeg(local_path, "temp_audio.mp3")
-                                        transcript = transcribe_with_assemblyai("temp_audio.mp3")
-
-                                        # Generate summary
-                                        quote_prompt = f"Set a title \"Quotes:\" in bold. Extract powerful or interesting quotes:\n{transcript}"
-                                        quotes = ai_model.generate_content(quote_prompt).text
-                                        summary_prompt = (
-                                            f"Start with title as \"Summary:\" in bold, followed by a paragraph.\n"
-                                            "**Timestamps:**\n"
-                                            "Extract and list only 5–7 important moments from the following transcript.\n"
-                                            "Each moment should be one full sentence with the [min:sec] timestamp.\n\n"
-                                            f"Transcript:\n{transcript}"
-                                        )
-                                        summary = ai_model.generate_content(summary_prompt).text
-
-                                        st.session_state[session_key] = {
-                                            "transcript": transcript,
-                                            "summary": summary,
-                                            "quotes": quotes
-                                        }
-                                    except Exception as e:
-                                        st.error(f"❌ Error: {e}")
-                                        continue
-
-                            content = st.session_state[session_key]
-                            st.markdown(f"#### 📄 {video_name}")
-                            st.markdown(content["quotes"])
-                            st.markdown(content["summary"])
-                            summaries.append((f"{title}_{video_name}", content["summary"], content["quotes"], content["transcript"]))
-
-                            # Q&A Section with form to prevent full rerun
-                            q_key = f"{session_key}_question"
-                            q_response_key = f"{session_key}_response"
-                            q_response_cache_key = f"{session_key}_last_question"
-                            
-                            with st.form(key=f"{session_key}_qa_form"):
-                                question = st.text_input(f"💬 Ask a question about `{video_name}`:", key=q_key)
-                                submit = st.form_submit_button("🧠 Ask")
-                            
-                                if submit and question:
-                                    if (q_response_cache_key not in st.session_state or
-                                        st.session_state[q_response_cache_key] != question):
-                                        response = ai_model.generate_content(
-                                            f"Answer this in detail based on the video transcription:\n{content['transcript']}\n\nQuestion: {question}"
-                                        )
-                                        st.session_state[q_response_key] = response.text
-                                        st.session_state[q_response_cache_key] = question
-                            
-                            # Always display last answer if available
-                            if q_response_key in st.session_state:
-                                st.markdown(f"**Answer:** {st.session_state[q_response_key]}")
+                            with st.container():
+                                if session_key not in st.session_state:
+                                    with st.spinner("📥 Downloading and processing..."):
+                                        try:
+                                            video_url = attachment["_links"]["download"]
+                                            full_url = f"{os.getenv('CONFLUENCE_BASE_URL').rstrip('/')}{video_url}"
+                                            local_path = f"{title}_{video_name}".replace(" ", "_")
+                                            video_data = confluence._session.get(full_url).content
+                                            with open(local_path, "wb") as f:
+                                                f.write(video_data)
+    
+                                            extract_audio_ffmpeg(local_path, "temp_audio.mp3")
+                                            transcript = transcribe_with_assemblyai("temp_audio.mp3")
+    
+                                            # Generate summary
+                                            quote_prompt = f"Set a title \"Quotes:\" in bold. Extract powerful or interesting quotes:\n{transcript}"
+                                            quotes = ai_model.generate_content(quote_prompt).text
+                                            summary_prompt = (
+                                                f"Start with title as \"Summary:\" in bold, followed by a paragraph.\n"
+                                                "**Timestamps:**\n"
+                                                "Extract and list only 5–7 important moments from the following transcript.\n"
+                                                "Each moment should be one full sentence with the [min:sec] timestamp.\n\n"
+                                                f"Transcript:\n{transcript}"
+                                            )
+                                            summary = ai_model.generate_content(summary_prompt).text
+    
+                                            st.session_state[session_key] = {
+                                                "transcript": transcript,
+                                                "summary": summary,
+                                                "quotes": quotes
+                                            }
+                                        except Exception as e:
+                                            st.error(f"❌ Error: {e}")
+                                            continue
+    
+                                content = st.session_state[session_key]
+                                st.markdown(f"#### 📄 {video_name}")
+                                st.markdown(content["quotes"])
+                                st.markdown(content["summary"])
+                                summaries.append((f"{title}_{video_name}", content["summary"], content["quotes"], content["transcript"]))
+    
+                                # Q&A Section with form to prevent full rerun
+                                q_key = f"{session_key}_question"
+                                q_response_key = f"{session_key}_response"
+                                q_response_cache_key = f"{session_key}_last_question"
+                                
+                                with st.form(key=f"{session_key}_qa_form"):
+                                    question = st.text_input(f"💬 Ask a question about `{video_name}`:", key=q_key)
+                                    submit = st.form_submit_button("🧠 Ask")
+                                
+                                    if submit and question:
+                                        if (q_response_cache_key not in st.session_state or
+                                            st.session_state[q_response_cache_key] != question):
+                                            response = ai_model.generate_content(
+                                                f"Answer this in detail based on the video transcription:\n{content['transcript']}\n\nQuestion: {question}"
+                                            )
+                                            st.session_state[q_response_key] = response.text
+                                            st.session_state[q_response_cache_key] = question
+                                
+                                # Always display last answer if available
+                                if q_response_key in st.session_state:
+                                    st.markdown(f"**Answer:** {st.session_state[q_response_key]}")
 
 
                             # Individual File Download
