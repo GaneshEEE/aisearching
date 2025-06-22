@@ -18,10 +18,10 @@ import warnings
 
 # Optional imports for video summarizer
 try:
-    from moviepy import VideoFileClip
+    import ffmpeg
     from faster_whisper import WhisperModel
 except ImportError:
-    VideoFileClip = None
+    ffmpeg = None
     WhisperModel = None
 
 warnings.filterwarnings("ignore")
@@ -40,6 +40,13 @@ def remove_emojis(text):
         "]+", flags=re.UNICODE)
     no_emoji = emoji_pattern.sub(r'', text)
     return no_emoji.encode('latin-1', 'ignore').decode('latin-1')
+
+
+def extract_audio_ffmpeg(video_path, audio_path):
+    try:
+        ffmpeg.input(video_path).output(audio_path, acodec='mp3', vn=None).run(overwrite_output=True)
+    except ffmpeg.Error as e:
+        raise RuntimeError(f"FFmpeg error: {e.stderr.decode()}")
 
 
 def clean_html(html_content):
@@ -314,185 +321,101 @@ def feature_2():
             try:
                 pages = confluence.get_all_pages_from_space(space=space_key, start=0, limit=100)
                 page_titles = [page["title"] for page in pages]
-                selected_pages = st.multiselect("Select Confluence Pages:", page_titles)
+                selected_pages = st.multiselect("Select Pages to Process:", page_titles)
                 if selected_pages:
                     summaries = []
                     for page in pages:
+                        if page["title"] not in selected_pages:
+                            continue
                         title = page["title"]
-                        if title in selected_pages:
-                            page_id = page["id"]
-                            title_placeholder = st.empty()
-                            title_placeholder.markdown(f"---\n### 🎬 Processing: `{title}`")
-                            try:
-                                attachments = confluence.get(f"/rest/api/content/{page_id}/child/attachment?limit=50")
-                                for attachment in attachments["results"]:
-                                    video_name = attachment["title"].strip()
-                                    if video_name.lower().endswith(".mp4"):
-                                        session_key = f"{page_id}_{video_name}".replace(" ", "_")
-                                        if session_key not in st.session_state:
-                                            progress = st.progress(0, text="Starting...")
-                                            try:
-                                                video_url = attachment["_links"]["download"]
-                                                full_url = f"{os.getenv('CONFLUENCE_BASE_URL').rstrip('/')}{video_url}"
-                                                video_data = confluence._session.get(full_url).content
-                                                local_path = f"{title}_{video_name}".replace(" ", "_")
-                                                with open(local_path, "wb") as f:
-                                                    f.write(video_data)
-                                                progress.progress(20, "🎞 Extracting audio...")
-                                                if VideoFileClip is None or WhisperModel is None:
-                                                    st.warning("Video/audio libraries not installed.")
-                                                    continue
-                                                video = VideoFileClip(local_path)
-                                                video.audio.write_audiofile("temp_audio.mp3")
-                                                progress.progress(40, "🔊 Transcribing audio...")
-                                                model = WhisperModel("small", device="cpu", compute_type="int8")
-                                                segments, _ = model.transcribe("temp_audio.mp3")
-                                                transcript_with_timestamps = []
-                                                for s in segments:
-                                                    start_min = int(s.start // 60)
-                                                    start_sec = int(s.start % 60)
-                                                    timestamp = f"[{start_min}:{start_sec:02}]"
-                                                    transcript_with_timestamps.append(f"{timestamp} {s.text}")
-                                                full_transcript = "\n".join(transcript_with_timestamps)
-                                                progress.progress(65, "✍️ Generating quotes...")
-                                                quote_prompt = f"Set a title \"Quotes:\" in bold. Extract powerful or interesting quotes:\n{full_transcript}"
-                                                quotes = ai_model.generate_content(quote_prompt).text
-                                                st.session_state[f"{session_key}_quotes"] = quotes
-                                                progress.progress(80, "📚 Generating summary...")
-                                                summary_prompt = (
-                                                    f"Start with title as \"Summary:\" in bold, followed by 2-3 paragraphs.\n"
-                                                    f"Then add title \"Timestamps:\" and list bullet points with [min:sec]:\n{full_transcript}"
-                                                )
-                                                summary = ai_model.generate_content(summary_prompt).text
-                                                progress.progress(100, "✅ Done!")
-                                                st.session_state[session_key] = {
-                                                    "transcript": full_transcript,
-                                                    "summary": summary
-                                                }
-                                                title_placeholder.markdown(f"---\n### 🎬 Processed: `{title}`")
-                                            except Exception as ve:
-                                                progress.empty()
-                                                st.warning(f"⚠️ Could not process {video_name}: {ve}")
-                                        else:
-                                            title_placeholder.markdown(f"---\n### 🎬 Processed: `{title}`")
-                                        full_transcript = st.session_state[session_key]["transcript"]
-                                        summary = st.session_state[session_key]["summary"]
-                                        quotes = st.session_state.get(f"{session_key}_quotes", "")
-                                        summary_title = f"{title} - {video_name}"
-                                        summaries.append((summary_title, summary, quotes))
-                                        st.markdown(f"### 📄 {summary_title}")
-                                        st.markdown(quotes)
-                                        st.markdown(summary)
-                                        q_key = f"{summary_title}_question"
-                                        q_submit_key = f"{summary_title}_ask_clicked"
-                                        q_response_key = f"{summary_title}_response"
-                                        q_response_cache_key = f"{summary_title}_last_question"
-                                        st.text_input(f"Ask a question about `{summary_title}`:", key=q_key)
-                                        if st.button("🧠 Ask", key=q_submit_key):
-                                            question = st.session_state[q_key].strip()
-                                            if question:
-                                                if (q_response_cache_key not in st.session_state or
-                                                    st.session_state[q_response_cache_key] != question):
-                                                    answer = ai_model.generate_content(
-                                                        f"Answer this in detail based on the video transcription:\n{full_transcript}\n\nQuestion: {question}"
-                                                    )
-                                                    st.session_state[q_response_key] = answer.text
-                                                    st.session_state[q_response_cache_key] = question
-                                        if q_response_key in st.session_state:
-                                            st.markdown(f"**Answer:** {st.session_state[q_response_key]}")
-                                        default_file_base = f"{summary_title.replace(' ', '_')}".replace(":", "").replace("/", "_")
-                                        custom_name_key = f"{summary_title}_filename"
-                                        file_base = st.text_input(
-                                            label="📝 Set custom filename (without extension):",
-                                            value=default_file_base,
-                                            key=custom_name_key
-                                        )
-                                        format_key = f"{summary_title}_format"
-                                        format_choice = st.selectbox(
-                                            f"Download format for {summary_title}:",
-                                            ["PDF", "TXT"],
-                                            key=format_key,
-                                            index=0,
-                                            label_visibility="collapsed"
-                                        )
-                                        filename = f"{file_base}.{format_choice.lower()}"
-                                        export_content = f"Top Quotes:\n{quotes}\n\nSummary with Timestamps:\n{summary}"
-                                        if format_choice == "PDF":
-                                            pdf = FPDF()
-                                            pdf.add_page()
-                                            pdf.set_auto_page_break(auto=True, margin=15)
-                                            pdf.set_font("Arial", size=12)
-                                            clean_content = remove_emojis(export_content)
-                                            for line in clean_content.split("\n"):
-                                                try:
-                                                    pdf.multi_cell(0, 10, line)
-                                                except:
-                                                    pdf.multi_cell(0, 10, line.encode('latin-1', 'replace').decode('latin-1'))
-                                            pdf_output = pdf.output(dest='S').encode('latin-1')
-                                            st.download_button(
-                                                label="📥 Download PDF",
-                                                data=BytesIO(pdf_output),
-                                                file_name=filename,
-                                                mime="application/pdf"
-                                            )
-                                        else:
-                                            st.download_button(
-                                                label="📥 Download TXT",
-                                                data=export_content.encode("utf-8"),
-                                                file_name=filename,
-                                                mime="text/plain"
-                                            )
-                            except Exception as e:
-                                st.error(f"Error processing {title}: {e}")
-                    
-                    # Save to Confluence functionality
-                    if summaries:
-                        st.markdown("---")
-                        st.subheader("📝 Save to Confluence Page")
-                        
-                        # Use auto_page as default if available
-                        if auto_page:
-                            target_page_title = auto_page
-                            st.success(f"📄 Auto-selected page to update: {target_page_title}")
-                        else:
-                            target_page_title = st.text_input("Enter the Confluence page title to save summaries to:")
-                        
-                        if st.button("✏️ Save Video Summaries to Confluence"):
-                            if target_page_title:
-                                try:
-                                    matching_pages = [p for p in pages if p["title"] == target_page_title]
-                                    if not matching_pages:
-                                        st.error("Page not found in selected pages.")
-                                    else:
-                                        page_id = matching_pages[0]["id"]
-                                        existing_page = confluence.get_page_by_id(page_id, expand="body.storage")
-                                        existing_content = existing_page["body"]["storage"]["value"]
-                                        
-                                        # Create summary content
-                                        summary_content = "<hr/><h3>Video Summaries</h3>"
-                                        for summary_title, summary, quotes in summaries:
-                                            summary_content += f"<h4>{summary_title}</h4>"
-                                            summary_content += f"<h5>Quotes:</h5><p>{quotes.replace(chr(10), '<br>')}</p>"
-                                            summary_content += f"<h5>Summary:</h5><p>{summary.replace(chr(10), '<br>')}</p>"
-                                            summary_content += "<hr/>"
-                                        
-                                        updated_body = existing_content + summary_content
-                                        
-                                        confluence.update_page(
-                                            page_id=page_id,
-                                            title=target_page_title,
-                                            body=updated_body,
-                                            representation="storage"
-                                        )
-                                        st.success("✅ Video summaries saved to Confluence page.")
-                                except Exception as e:
-                                    st.error(f"❌ Failed to update page: {str(e)}")
+                        page_id = page["id"]
+                        st.markdown(f"### 🎬 Processing: {title}")
+                        attachments = confluence.get(f"/rest/api/content/{page_id}/child/attachment?limit=50")
+                        for attachment in attachments["results"]:
+                            video_name = attachment["title"].strip()
+                            if not video_name.lower().endswith(".mp4"):
+                                continue
+                            session_key = f"{page_id}_{video_name}".replace(" ", "_")
+                            if session_key in st.session_state:
+                                st.info(f"🟡 Cached summary found for {video_name}")
                             else:
-                                st.warning("Please enter a page title.")
+                                with st.spinner("📥 Downloading and processing..."):
+                                    try:
+                                        video_url = attachment["_links"]["download"]
+                                        full_url = f"{os.getenv('CONFLUENCE_BASE_URL').rstrip('/')}{video_url}"
+                                        local_path = f"{title}_{video_name}".replace(" ", "_")
+                                        video_data = confluence._session.get(full_url).content
+                                        with open(local_path, "wb") as f:
+                                            f.write(video_data)
+
+                                        # Extract audio with ffmpeg
+                                        extract_audio_ffmpeg(local_path, "temp_audio.mp3")
+
+                                        # Transcribe with Whisper
+                                        model = WhisperModel("tiny", device="cpu", compute_type="int8")
+                                        segments, _ = model.transcribe("temp_audio.mp3")
+                                        transcript = "\n".join(
+                                            f"[{int(s.start // 60)}:{int(s.start % 60):02}] {s.text}" for s in segments
+                                        )
+
+                                        # Generate quotes and summary
+                                        ai_model = genai.GenerativeModel("models/gemini-1.5-flash-8b-latest")
+                                        quote_prompt = f"Set a title \"Quotes:\" in bold. Extract powerful or interesting quotes:\n{transcript}"
+                                        quotes = ai_model.generate_content(quote_prompt).text
+                                        summary_prompt = (
+                                            f"Start with title as \"Summary:\" in bold, followed by a paragraph.\n"
+                                            f"Then add title \"Timestamps:\" and list bullet points with [min:sec]:\n{transcript}"
+                                        )
+                                        summary = ai_model.generate_content(summary_prompt).text
+
+                                        # Cache result
+                                        st.session_state[session_key] = {
+                                            "transcript": transcript,
+                                            "summary": summary,
+                                            "quotes": quotes
+                                        }
+                                    except Exception as e:
+                                        st.error(f"❌ Error: {e}")
+                                        continue
+
+                            content = st.session_state[session_key]
+                            st.markdown(f"#### 📄 {video_name}")
+                            st.markdown(content["quotes"])
+                            st.markdown(content["summary"])
+                            summaries.append((f"{title}_{video_name}", content["summary"], content["quotes"]))
+
+                    if summaries:
+                        st.markdown("## 📦 Export All Summaries")
+                        all_text = ""
+                        for t, s, q in summaries:
+                            all_text += f"\n\n---\n\n{t}\n\nQuotes:\n{q}\n\nSummary:\n{s}\n"
+
+                        file_name = st.text_input("Filename (without extension):", value="All_Summaries")
+                        export_format = st.selectbox("Format:", ["PDF", "TXT"])
+                        if export_format == "PDF":
+                            pdf = FPDF()
+                            pdf.add_page()
+                            pdf.set_font("Arial", size=12)
+                            for line in remove_emojis(all_text).split("\n"):
+                                pdf.multi_cell(0, 10, line)
+                            file_data = pdf.output(dest="S").encode("latin-1")
+                            mime = "application/pdf"
+                            ext = "pdf"
+                        else:
+                            file_data = all_text.encode("utf-8")
+                            mime = "text/plain"
+                            ext = "txt"
+
+                        st.download_button(
+                            label=f"📥 Download All as {ext.upper()}",
+                            data=BytesIO(file_data),
+                            file_name=f"{file_name.strip() or 'All_Summaries'}.{ext}",
+                            mime=mime
+                        )
             except Exception as e:
-                st.error(f"Error fetching pages: {str(e)}")
+                st.error(f"Error loading pages: {e}")
     else:
-        st.error("❌ Connection to Confluence failed.")
+        st.error("❌ Could not connect to Confluence.")
 
 # ------------- Feature 3: Code Assistant -------------
 def feature_3():
