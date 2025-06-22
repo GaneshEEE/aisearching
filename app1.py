@@ -946,7 +946,7 @@ def feature_4():
                         </div>
                         """, unsafe_allow_html=True)
                         if "impact_text" not in st.session_state:
-                            st.session_state.impact_text = safe_generate(f"Analyze this code diff and explain the impact but keep it concise:\n\n{safe_diff}")
+                            st.session_state.impact_text = safe_generate(f"Analyze this code diff and explain the impact but keep the content less:\n\n{safe_diff}")
                         if "rec_text" not in st.session_state:
                             st.session_state.rec_text = safe_generate(f"As a senior engineer, suggest improvements for this diff but keep it concise:\n\n{safe_diff}")
                         if "risk_text" not in st.session_state:
