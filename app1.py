@@ -1070,13 +1070,9 @@ def feature_5():
                 titles = [page['title'] for page in pages]
                 
                 # Auto-select pages if available from query params
-                if auto_page:
-                    selected_code_title = auto_page
-                    selected_test_input_title = auto_page
-                    st.success(f"📄 Auto-selected pages: {selected_code_title}")
-                else:
-                    selected_code_title = st.selectbox("Select Code Page", options=titles, index=None, placeholder="Choose a code page")
-                    selected_test_input_title = st.selectbox("Select Test Input Page", options=titles, index=None, placeholder="Choose a test input page")
+            
+                selected_code_title = st.selectbox("Select Code Page", options=titles, index=None, placeholder="Choose a code page")
+                selected_test_input_title = st.selectbox("Select Test Input Page", options=titles, index=None, placeholder="Choose a test input page")
                     
                 code_page = next((p for p in pages if p["title"] == selected_code_title), None)
                 test_input_page = next((p for p in pages if p["title"] == selected_test_input_title), None)
