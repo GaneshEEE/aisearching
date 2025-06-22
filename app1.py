@@ -548,7 +548,7 @@ def feature_2():
                                         
                                         # Create summary content
                                         summary_content = "<hr/><h3>Video Summaries</h3>"
-                                        for summary_title, summary, quotes in summaries:
+                                        for summary_title, summary, quotes, _ in summaries:
                                             summary_content += f"<h4>{summary_title}</h4>"
                                             summary_content += f"<h5>Quotes:</h5><p>{quotes.replace(chr(10), '<br>')}</p>"
                                             summary_content += f"<h5>Summary:</h5><p>{summary.replace(chr(10), '<br>')}</p>"
