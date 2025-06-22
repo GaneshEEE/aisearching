@@ -45,8 +45,9 @@ def remove_emojis(text):
 def extract_audio_ffmpeg(video_path, audio_path):
     try:
         ffmpeg.input(video_path).output(audio_path, acodec='mp3', vn=None).run(overwrite_output=True)
-    except ffmpeg.Error as e:
-        raise RuntimeError(f"FFmpeg error: {e.stderr.decode()}")
+    except Exception as e:
+        raise RuntimeError(f"FFmpeg error: {str(e)}")
+
 
 
 def clean_html(html_content):
