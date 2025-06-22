@@ -50,43 +50,73 @@ def extract_audio_ffmpeg(video_path, audio_path):
 
 def transcribe_with_assemblyai(audio_path):
     api_key = os.getenv("ASSEMBLYAI_API_KEY")
-    headers = {"authorization": api_key, "content-type": "application/json"}
+    if not api_key:
+        raise ValueError("Missing ASSEMBLYAI_API_KEY in environment.")
 
-    # Upload
+    # 🔹 Upload audio file
     with open(audio_path, 'rb') as f:
         upload_response = requests.post(
             "https://api.assemblyai.com/v2/upload",
             headers={"authorization": api_key},
-            files={"file": f}
+            data=f
         )
     if upload_response.status_code != 200:
         raise RuntimeError("Upload failed: " + upload_response.text)
+
     audio_url = upload_response.json()["upload_url"]
 
-    # Transcribe
+    # 🔹 Start transcription (✅ no extra fields)
     transcript_response = requests.post(
         "https://api.assemblyai.com/v2/transcript",
-        json={"audio_url": audio_url},
-        headers=headers
+        headers={
+            "authorization": api_key,
+            "content-type": "application/json"
+        },
+        json={"audio_url": audio_url}
     )
+
     if transcript_response.status_code != 200:
         raise RuntimeError("Transcription request failed: " + transcript_response.text)
 
     transcript_id = transcript_response.json()["id"]
 
-    # Polling
+    # 🔁 Polling for result
     while True:
         polling_response = requests.get(
             f"https://api.assemblyai.com/v2/transcript/{transcript_id}",
-            headers=headers
+            headers={"authorization": api_key}
         )
-        status = polling_response.json()["status"]
-        if status == "completed":
-            return polling_response.json()["text"]
-        elif status == "error":
-            raise RuntimeError("Transcription failed: " + polling_response.json()["error"])
-        time.sleep(2)
+        data = polling_response.json()
 
+        if data["status"] == "completed":
+            words = data.get("words", [])
+            if not words:
+                return data["text"]  # fallback to plain if no word timestamps
+
+            # ✅ Build [min:sec] formatted lines
+            lines = []
+            current_time = ""
+            current_line = []
+            for word in words:
+                start_ms = word.get("start", 0)
+                timestamp = f"[{start_ms // 60000}:{(start_ms % 60000) // 1000:02}]"
+
+                if timestamp != current_time:
+                    if current_line:
+                        lines.append(f"{current_time} {' '.join(current_line)}")
+                    current_time = timestamp
+                    current_line = [word["text"]]
+                else:
+                    current_line.append(word["text"])
+
+            if current_line:
+                lines.append(f"{current_time} {' '.join(current_line)}")
+
+            return "\n".join(lines)
+
+        elif data["status"] == "error":
+            raise RuntimeError("Transcription failed: " + data.get("error", "Unknown error"))
+        time.sleep(2)
 
 def clean_html(html_content):
     soup = BeautifulSoup(html_content, "html.parser")
@@ -373,7 +403,10 @@ def feature_2():
                                         quotes = ai_model.generate_content(quote_prompt).text
                                         summary_prompt = (
                                             f"Start with title as \"Summary:\" in bold, followed by a paragraph.\n"
-                                            f"Then add title \"Timestamps:\" and list bullet points with [min:sec]:\n{transcript}"
+                                            "**Timestamps:**\n"
+                                            "Extract and list only 5–7 important moments from the following transcript.\n"
+                                            "Each moment should be one full sentence with the [min:sec] timestamp.\n\n"
+                                            f"Transcript:\n{transcript}"
                                         )
                                         summary = ai_model.generate_content(summary_prompt).text
 
