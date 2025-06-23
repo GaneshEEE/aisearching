@@ -1249,12 +1249,16 @@ def feature_5():
                     )
                     st.markdown("### 🤖 Ask Questions")
                     user_question = st.text_input("Ask a question about the generated results:")
+                    
                     if user_question:
                         with st.spinner("🤖 Thinking..."):
                             prompt_chat = f"""Based on the following content:\n📘 Test Strategy:\n{st.session_state.strategy_text}\n🌐 Cross-Platform Testing:\n{st.session_state.cross_text}\n🔒 Sensitivity Analysis:\n{st.session_state.sensitivity_text}\n\nAnswer this user query: \"{user_question}\" """
                             ai_response = ai_model.generate_content(prompt_chat)
                             st.session_state.ai_response = ai_response.text.strip()
-                    if st.session_state.ai_response:
+                    else:
+                        st.session_state.ai_response = ""  # ❗ Clear previous response if no new question is asked
+                    
+                    if st.session_state.get("ai_response"):
                         st.markdown(f"**🤖 AI Response:** {st.session_state.ai_response}")
                     
                     # Save to Confluence functionality
