@@ -16,6 +16,11 @@ from io import BytesIO
 import difflib
 import warnings
 import requests
+import os
+
+st.set_page_config(
+    initial_sidebar_state="collapsed"  # 👈 Collapses sidebar on first load
+)
 
 # Optional imports for video summarizer
 try:
@@ -27,6 +32,46 @@ warnings.filterwarnings("ignore")
 
 # Load environment variables
 load_dotenv()
+
+
+# Set available keys
+genai_keys = {
+    "Key 1": os.getenv("GENAI_API_KEY_1"),
+    "Key 2": os.getenv("GENAI_API_KEY_2")
+}
+
+if "api_selector" not in st.session_state:
+    st.session_state.api_selector = "Key 1"
+
+# --- Manual dropdown to select key ---
+selected_key_label = st.sidebar.selectbox(
+    "🔑 Select Gemini API Key", list(genai_keys.keys()), key="api_selector"
+)
+
+selected_genai_key = genai_keys[selected_key_label]
+
+# --- Configure Gemini only once or when key is changed ---
+if "configured_key" not in st.session_state or st.session_state["configured_key"] != selected_genai_key:
+    genai.configure(api_key=selected_genai_key)
+    
+    # 🔁 Clear related AI cache/session variables before rerun
+    keys_to_clear = ["ai_response", "qa_answer", "user_question"]
+    for key in keys_to_clear:
+        st.session_state.pop(key, None)
+
+    st.session_state["configured_key"] = selected_genai_key
+    st.rerun()
+
+    
+
+# ✅ Now safely use genai_key throughout your app
+st.session_state["genai_key"] = selected_genai_key
+model = genai.GenerativeModel("models/gemini-1.5-flash-8b-latest")
+
+st.sidebar.success(f"🧠 Gemini key in use: {selected_genai_key}")
+
+
+
 
 # ------------- Shared Helper Functions -------------
 def remove_emojis(text):
@@ -183,7 +228,7 @@ def feature_1():
             return None
 
     def init_ai():
-        genai.configure(api_key=os.getenv("GENAI_API_KEY"))
+        genai.configure(api_key=st.session_state["genai_key"])
         return genai.GenerativeModel("models/gemini-1.5-flash-8b-latest")
 
     def clean_html(raw_html):
@@ -358,7 +403,7 @@ def feature_2():
             st.error(f"Confluence init failed: {e}")
             return None
 
-    genai.configure(api_key=os.getenv("GENAI_API_KEY"))
+    genai.configure(api_key=st.session_state["genai_key"])
     ai_model = genai.GenerativeModel("models/gemini-1.5-flash-8b-latest")
     confluence = init_confluence()
 
@@ -597,7 +642,7 @@ def feature_3():
             st.error(f"Confluence initialization failed: {str(e)}")
             return None
     def init_ai():
-        genai.configure(api_key=os.getenv("GENAI_API_KEY"))
+        genai.configure(api_key=st.session_state["genai_key"])
         return genai.GenerativeModel("models/gemini-1.5-flash-8b-latest")
     def strip_code_fences(text: str) -> str:
         return re.sub(r"^```[a-zA-Z]*\n|```$", "", text.strip(), flags=re.MULTILINE)
@@ -861,7 +906,7 @@ def feature_4():
         except Exception as e:
             st.error(f"Confluence init failed: {str(e)}")
             return None
-    genai.configure(api_key=os.getenv("GENAI_API_KEY"))
+    genai.configure(api_key=st.session_state["genai_key"])
     model = genai.GenerativeModel("models/gemini-1.5-flash-8b-latest")
     MAX_CHARS = 10000
     def extract_code_blocks(content):
@@ -1132,7 +1177,7 @@ def feature_5():
     
     @st.cache_resource
     def init_ai():
-        genai.configure(api_key=os.getenv("GENAI_API_KEY"))
+        genai.configure(api_key=st.session_state["genai_key"])
         return genai.GenerativeModel("models/gemini-1.5-flash-8b-latest")
     @st.cache_resource
     def init_confluence():
